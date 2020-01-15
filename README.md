@@ -31,7 +31,7 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 创建一个协程，返回一个int类型的协程id
 * void coroutine_resume(int)     
 传入一个协程id，切换到该协程
-* int coroutine_go(CoroutineCallBack)
+* int coroutine_go(CoroutineCallBack)       
 创建一个协程并切换至该协程，实际上是coroutine_create和coroutine_resume的组合
 * void coroutine_yield()   
 切换到上一个协程
