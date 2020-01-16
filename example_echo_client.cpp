@@ -14,6 +14,7 @@ void client_echo() {
     int err = co_connect(fd, (const struct sockaddr*)&addr, sizeof(addr));
 
     if (err) {
+        close(fd);
         return;
     }
 
