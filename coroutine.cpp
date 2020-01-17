@@ -7,8 +7,8 @@
 #define DEFAULT_SCHEDULE_CAP 1024
 #define DEFAULT_STACK_SIZE 128 * 1024
 
-int min(int a, int b) { return a > b ? b : a; }
-int max(int a, int b) { return a > b ? a : b; }
+static inline int min(int a, int b) { return a > b ? b : a; }
+static inline int max(int a, int b) { return a > b ? a : b; }
 
 static void coroutine_function();
 
@@ -16,7 +16,7 @@ class Schedule {
    public:
     Schedule(size_t stackSize)
         : stackSize_(max(stackSize, DEFAULT_STACK_SIZE)),
-          nco_(0),
+          coSize_(0),
           running_(-1),
           coArray_(DEFAULT_SCHEDULE_CAP) {
         int mainCoId = coCreate();
@@ -28,13 +28,13 @@ class Schedule {
 
     int findNextCoPositon() {
         int ret = -1;
-        if (nco_ >= coArray_.size()) {
+        if (coSize_ >= coArray_.size()) {
             ret = coArray_.size();
             coArray_.resize(coArray_.size() * 2);
         } else {
             int i;
             for (i = 0; i < coArray_.size(); ++i) {
-                int id = (nco_ + i) % coArray_.size();
+                int id = (coSize_ + i) % coArray_.size();
                 if (coArray_[id] == nullptr) {
                     ret = id;
                     break;
@@ -54,11 +54,11 @@ class Schedule {
         }
         Coroutine* co = coArray_[id];
         co->status = COROUTINE_SUSPEND;
-        ++nco_;
+        ++coSize_;
 
         if (cb) {
             assert(co->stack != NULL);
-            co->cb = std::move(cb);
+            co->cb = cb;
 
             getcontext(&co->ctx);
             co->ctx.uc_stack.ss_sp = co->stack;
@@ -88,17 +88,19 @@ class Schedule {
     void coResume(int id) {
         Coroutine* co = coArray_[id];
         Coroutine* curCo = coArray_[running_];
-        switch (co->status) {
-            case COROUTINE_SUSPEND:
-                curCo->status = COROUTINE_RESUME_OTHER;
-                co->preCo = running_;
-                co->status = COROUTINE_RUNNING;
-                running_ = id;
-                swapcontext(&curCo->ctx, &co->ctx);
 
-                break;
-            default:
-                assert(0);
+        assert(co->status == COROUTINE_SUSPEND);
+
+        if (co->status == COROUTINE_SUSPEND) {
+            curCo->status = COROUTINE_RESUME_OTHER;
+            co->preCo = running_;
+            co->status = COROUTINE_RUNNING;
+            running_ = id;
+            swapcontext(&curCo->ctx, &co->ctx);
+        } else {
+            // TODO: error, can't resume coroutine whose status is not suspend
+            fprintf(stderr,
+                    "can't resume coroutine whose status is not suspend\n");
         }
     }
 
@@ -116,7 +118,7 @@ class Schedule {
         Coroutine* co = coArray_[id];
         co->cb();
 
-        nco_--;
+        coSize_--;
         co->status = COROUTINE_DEAD;
 
         Coroutine* preCo = coArray_[co->preCo];
@@ -159,7 +161,7 @@ class Schedule {
     };
 
     size_t stackSize_;
-    int nco_;
+    int coSize_;
     int running_;
     std::vector<Coroutine*> coArray_;
 };

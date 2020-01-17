@@ -26,6 +26,8 @@ class EventLoop {
     static constexpr size_t MAX_EPOLL_EVENT_NUM = 1024;
 
     std::array<epoll_event, MAX_EPOLL_EVENT_NUM> eventArray_;
+
+    size_t eventNum_;
 };
 
 #endif

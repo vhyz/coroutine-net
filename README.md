@@ -162,6 +162,7 @@ void listener() {
             coroutine_go(std::bind(echo, client_fd));
         }
     }
+    close(fd);
 }
 
 int main() {
