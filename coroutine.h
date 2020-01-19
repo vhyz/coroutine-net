@@ -1,5 +1,4 @@
-#ifndef VHYZ_COROUTINE_H
-#define VHYZ_COROUTINE_H
+#pragma once
 
 #include <functional>
 
@@ -12,16 +11,14 @@
 // resume了其他协程的协程
 #define COROUTINE_RESUME_OTHER 3
 
-void coroutine_env_init(size_t stsize);
-void coroutine_env_destory();
+void CoroutineEnvInit(size_t stsize);
+void CoroutineEnvDestory();
 
 using CoroutineCallBack = std::function<void()>;
 
-int coroutine_create(const CoroutineCallBack& cb);
-void coroutine_resume(int);
-int coroutine_go(const CoroutineCallBack& cb);
-void coroutine_yield();
-int coroutine_running();
-int coroutine_status(int);
-
-#endif
+int CoroutineCreate(const CoroutineCallBack& cb);
+void CoroutineResume(int);
+int CoroutineGo(const CoroutineCallBack& cb);
+void CoroutineYield();
+int CoroutineRunning();
+int CoroutineStatus(int);

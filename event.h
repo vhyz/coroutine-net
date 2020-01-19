@@ -16,27 +16,27 @@ class Event {
 
     Event(int fd, uint32_t events = NONE_EVENT) : fd_(fd), events_(events) {}
 
-    void setFd(int fd) { fd_ = fd; }
+    void SetFd(int fd) { fd_ = fd; }
 
-    int getFd() const { return fd_; }
+    int GetFd() const { return fd_; }
 
-    void setEvents(uint32_t events) { events_ = events; }
+    void SetEvents(uint32_t events) { events_ = events; }
 
-    uint32_t getEvents() const { return events_; }
+    uint32_t GetEvents() const { return events_; }
 
-    void enableRead() { events_ |= READ_EVENT; }
+    void EnableRead() { events_ |= READ_EVENT; }
 
-    void disableRead() { events_ &= ~READ_EVENT; }
+    void DisableRead() { events_ &= ~READ_EVENT; }
 
-    void enableWrite() { events_ |= WRITE_EVENT; }
+    void EnableWrite() { events_ |= WRITE_EVENT; }
 
-    void disableWrite() { events_ &= ~WRITE_EVENT; }
+    void DisableWrite() { events_ &= ~WRITE_EVENT; }
 
-    void setEventCallBack(const EventCallBack& cb) { cb_ = cb; }
+    void SetEventCallBack(const EventCallBack& cb) { cb_ = cb; }
 
-    void setEventCallBack(EventCallBack&& cb) { cb_ = std::move(cb); }
+    void SetEventCallBack(EventCallBack&& cb) { cb_ = std::move(cb); }
 
-    void handleEvent(uint32_t events) {
+    void HandleEvent(uint32_t events) {
         if (cb_) {
             cb_(events);
         }

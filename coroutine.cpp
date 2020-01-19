@@ -1,8 +1,8 @@
 #include "coroutine.h"
-#include <ucontext.h>
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include "co_context.h"
 
 #define DEFAULT_SCHEDULE_CAP 1024
 #define DEFAULT_STACK_SIZE 128 * 1024
@@ -10,35 +10,35 @@
 static inline int min(int a, int b) { return a > b ? b : a; }
 static inline int max(int a, int b) { return a > b ? a : b; }
 
-static void coroutine_function();
+static void CoroutineFunction();
 
 class Schedule {
    public:
     Schedule(size_t stackSize)
-        : stackSize_(max(stackSize, DEFAULT_STACK_SIZE)),
-          coSize_(0),
+        : stack_size_(max(stackSize, DEFAULT_STACK_SIZE)),
+          num_co_(0),
           running_(-1),
-          coArray_(DEFAULT_SCHEDULE_CAP) {
-        int mainCoId = coCreate();
-        assert(mainCoId == 0);
+          co_array_(DEFAULT_SCHEDULE_CAP) {
+        int main_co_id = coCreate();
+        assert(main_co_id == 0);
 
-        coArray_[mainCoId]->status = COROUTINE_RUNNING;
-        running_ = mainCoId;
+        co_array_[main_co_id]->status = COROUTINE_RUNNING;
+        running_ = main_co_id;
     }
 
     int findNextCoPositon() {
         int ret = -1;
-        if (coSize_ >= coArray_.size()) {
-            ret = coArray_.size();
-            coArray_.resize(coArray_.size() * 2);
+        if (num_co_ >= co_array_.size()) {
+            ret = co_array_.size();
+            co_array_.resize(co_array_.size() * 2);
         } else {
             int i;
-            for (i = 0; i < coArray_.size(); ++i) {
-                int id = (coSize_ + i) % coArray_.size();
-                if (coArray_[id] == nullptr) {
+            for (i = 0; i < co_array_.size(); ++i) {
+                int id = (num_co_ + i) % co_array_.size();
+                if (co_array_[id] == nullptr) {
                     ret = id;
                     break;
-                } else if (coArray_[id]->status == COROUTINE_DEAD) {
+                } else if (co_array_[id]->status == COROUTINE_DEAD) {
                     ret = id;
                     break;
                 }
@@ -49,23 +49,20 @@ class Schedule {
 
     int coCreate(const CoroutineCallBack& cb = CoroutineCallBack()) {
         int id = findNextCoPositon();
-        if (coArray_[id] == nullptr) {
-            coArray_[id] = new Coroutine(id == 0 ? 0 : stackSize_);
+        if (co_array_[id] == nullptr) {
+            co_array_[id] = new Coroutine(id == 0 ? 0 : stack_size_);
         }
-        Coroutine* co = coArray_[id];
+        Coroutine* co = co_array_[id];
         co->status = COROUTINE_SUSPEND;
-        ++coSize_;
+        ++num_co_;
 
         if (cb) {
             assert(co->stack != NULL);
             co->cb = cb;
 
-            getcontext(&co->ctx);
-            co->ctx.uc_stack.ss_sp = co->stack;
-            co->ctx.uc_stack.ss_size = stackSize_;
-            co->ctx.uc_link = nullptr;
-
-            makecontext(&co->ctx, (void (*)(void))coroutine_function, 0);
+            co->ctx.stack = co->stack;
+            co->ctx.stack_size = stack_size_;
+            co_makecontext(&co->ctx, (void (*)(void*))CoroutineFunction, NULL);
         }
 
         return id;
@@ -77,26 +74,27 @@ class Schedule {
             return;
         }
 
-        Coroutine* co = coArray_[id];
-        Coroutine* pre_co = coArray_[co->preCo];
+        Coroutine* co = co_array_[id];
+        Coroutine* pre_co = co_array_[co->pre_co];
         co->status = COROUTINE_SUSPEND;
         pre_co->status = COROUTINE_RUNNING;
-        running_ = co->preCo;
-        swapcontext(&co->ctx, &pre_co->ctx);
+        running_ = co->pre_co;
+
+        co_swapcontext(&co->ctx, &pre_co->ctx);
     }
 
     void coResume(int id) {
-        Coroutine* co = coArray_[id];
-        Coroutine* curCo = coArray_[running_];
+        Coroutine* co = co_array_[id];
+        Coroutine* cur_co = co_array_[running_];
 
         assert(co->status == COROUTINE_SUSPEND);
 
         if (co->status == COROUTINE_SUSPEND) {
-            curCo->status = COROUTINE_RESUME_OTHER;
-            co->preCo = running_;
+            cur_co->status = COROUTINE_RESUME_OTHER;
+            co->pre_co = running_;
             co->status = COROUTINE_RUNNING;
             running_ = id;
-            swapcontext(&curCo->ctx, &co->ctx);
+            co_swapcontext(&cur_co->ctx, &co->ctx);
         } else {
             // TODO: error, can't resume coroutine whose status is not suspend
             fprintf(stderr,
@@ -107,29 +105,29 @@ class Schedule {
     int coRunning() { return running_; }
 
     int coStatus(int id) {
-        if (coArray_[id] == NULL) {
+        if (co_array_[id] == NULL) {
             return COROUTINE_DEAD;
         }
-        return coArray_[id]->status;
+        return co_array_[id]->status;
     }
 
     void coFunction() {
         int id = running_;
-        Coroutine* co = coArray_[id];
+        Coroutine* co = co_array_[id];
         co->cb();
 
-        coSize_--;
+        num_co_--;
         co->status = COROUTINE_DEAD;
 
-        Coroutine* preCo = coArray_[co->preCo];
-        preCo->status = COROUTINE_RUNNING;
-        running_ = co->preCo;
+        Coroutine* pre_co = co_array_[co->pre_co];
+        pre_co->status = COROUTINE_RUNNING;
+        running_ = co->pre_co;
 
-        setcontext(&preCo->ctx);
+        co_setcontext(&pre_co->ctx);
     }
 
     ~Schedule() {
-        for (Coroutine* co : coArray_) {
+        for (Coroutine* co : co_array_) {
             if (co) {
                 delete co;
             }
@@ -140,9 +138,9 @@ class Schedule {
     class Coroutine {
        public:
         CoroutineCallBack cb;
-        int preCo;
+        int pre_co;
         char* stack;
-        ucontext_t ctx;
+        co_context ctx;
         int status;
 
         Coroutine(size_t stack_size) {
@@ -160,34 +158,34 @@ class Schedule {
         }
     };
 
-    size_t stackSize_;
-    int coSize_;
+    size_t stack_size_;
+    int num_co_;
     int running_;
-    std::vector<Coroutine*> coArray_;
+    std::vector<Coroutine*> co_array_;
 };
 
 static thread_local Schedule* gSchedule;
 
-void coroutine_env_init(size_t stsize) { gSchedule = new Schedule(stsize); }
+void CoroutineEnvInit(size_t stsize) { gSchedule = new Schedule(stsize); }
 
-void coroutine_env_destory() { delete gSchedule; }
+void CoroutineEnvDestory() { delete gSchedule; }
 
-int coroutine_create(const CoroutineCallBack& cb) {
+int CoroutineCreate(const CoroutineCallBack& cb) {
     return gSchedule->coCreate(cb);
 }
 
-void coroutine_resume(int id) { gSchedule->coResume(id); }
+void CoroutineResume(int id) { gSchedule->coResume(id); }
 
-void coroutine_yield() { gSchedule->coYield(); }
+void CoroutineYield() { gSchedule->coYield(); }
 
-int coroutine_running() { return gSchedule->coRunning(); }
+int CoroutineRunning() { return gSchedule->coRunning(); }
 
-int coroutine_status(int id) { return gSchedule->coStatus(id); }
+int CoroutineStatus(int id) { return gSchedule->coStatus(id); }
 
-static void coroutine_function() { gSchedule->coFunction(); }
+static void CoroutineFunction() { gSchedule->coFunction(); }
 
-int coroutine_go(const CoroutineCallBack& cb) {
-    int co = coroutine_create(cb);
-    coroutine_resume(co);
+int CoroutineGo(const CoroutineCallBack& cb) {
+    int co = CoroutineCreate(cb);
+    CoroutineResume(co);
     return co;
 }

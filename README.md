@@ -10,32 +10,32 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 
 ### 协程模块
 
-* 使用ucontext接口实现的有栈协程，实现了resume,yield等协程操作
+* 实现了Linux x86_64平台下的上下文切换汇编，实现了resume,yield等协程操作
 * 使用私有栈实现，每个协程默认具有128K栈
 * 可链式创建协程，如A->B->C，并且每个协程都可resume任意另外一个协程
 
 ### 网络模块
 
 * 事件循环EventLoop用epoll的LT模式实现
-* 实现了co_read,co_write,co_connect,co_accept等函数，调用它们时如遇到IO阻塞会yield切换到其他的协程
+* 实现了CoRead,CoWrite,CoConnect,CoAccept等函数，调用它们时如遇到IO阻塞会yield切换到其他的协程
 
 ## Usage
 
 ### 协程模块
 
-* void coroutine_env_init(size_t)         
+* void CoroutineEnvInit(size_t)         
 初始化协程模块资源
-* void coroutine_env_destory()            
+* void CoroutineEnvDestory()            
 释放协程模块资源
-* int coroutine_create(CoroutineCallBack)        
+* int CoroutineCreate(CoroutineCallBack)        
 创建一个协程，返回一个int类型的协程id
-* void coroutine_resume(int)     
+* void CoroutineResume(int)     
 传入一个协程id，切换到该协程
-* int coroutine_go(CoroutineCallBack)       
+* int CoroutineGo(CoroutineCallBack)       
 创建一个协程并切换至该协程，实际上是coroutine_create和coroutine_resume的组合
-* void coroutine_yield()   
+* void CoroutineYield()   
 切换到上一个协程
-* int coroutine_running()    
+* int CoroutineRunning()    
 当前运行的协程id
 
 ``` C++
@@ -43,26 +43,26 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 #include "coroutine.h"
 
 int main() {
-    coroutine_env_init(0);
-    int co1 = coroutine_create([]() {
+    CoroutineEnvInit(0);
+    int co1 = CoroutineCreate([]() {
         printf("A\n");
-        coroutine_yield();
+        CoroutineYield();
         printf("C\n");
-        coroutine_yield();
+        CoroutineYield();
         printf("E\n");
     });
-    int co2 = coroutine_create([]() {
+    int co2 = CoroutineCreate([]() {
         printf("B\n");
-        coroutine_yield();
+        CoroutineYield();
         printf("D\n");
-        coroutine_yield();
+        CoroutineYield();
         printf("F\n");
     });
-    while (coroutine_status(co1) && coroutine_status(co2)) {
-        coroutine_resume(co1);
-        coroutine_resume(co2);
+    while (CoroutineStatus(co1) && CoroutineStatus(co2)) {
+        CoroutineResume(co1);
+        CoroutineResume(co2);
     }
-    coroutine_env_destory();
+    CoroutineEnvDestory();
     return 0;
 }
 ```
@@ -78,15 +78,13 @@ echo 客户端：
 #include "coroutine.h"
 #include "coroutine_net.h"
 
-using namespace std;
-
-void client_echo() {
+void ClientEcho() {
     struct sockaddr_in addr;
-    sockaddr_in_init(&addr, "127.0.0.1", 5000);
+    SockaddrInInit(&addr, "127.0.0.1", 5000);
 
-    int fd = create_nonblock_tcp_socket();
+    int fd = CreateNonblockTcpSocket();
 
-    int err = co_connect(fd, (const struct sockaddr*)&addr, sizeof(addr));
+    int err = CoConnect(fd, (const struct sockaddr*)&addr, sizeof(addr));
 
     if (err) {
         close(fd);
@@ -95,16 +93,16 @@ void client_echo() {
 
     for (;;) {
         char buf[1024];
-        ssize_t n = co_read(STDIN_FILENO, buf, sizeof(buf));
+        ssize_t n = CoRead(STDIN_FILENO, buf, sizeof(buf));
         if (n <= 0) {
             break;
         }
-        ssize_t n_write = co_write_all(fd, buf, n);
+        ssize_t n_write = CoWriteAll(fd, buf, n);
 
         if (n_write < n) {
             break;
         }
-        ssize_t n_read = co_read(fd, buf, n_write);
+        ssize_t n_read = CoRead(fd, buf, n_write);
         if (n_read <= 0) {
             break;
         }
@@ -115,14 +113,14 @@ void client_echo() {
 }
 
 int main() {
-    coroutine_env_init(0);
-    coroutine_net_init();
+    CoroutineEnvInit(0);
+    CoroutineNetInit();
 
-    coroutine_go(std::bind(client_echo));
-    coroutine_net_run();
+    CoroutineGo(std::bind(ClientEcho));
+    CoroutineNetRun();
 
-    coroutine_net_destory();
-    coroutine_env_destory();
+    CoroutineNetDestory();
+    CoroutineEnvDestory();
 }
 ```
 
@@ -133,19 +131,17 @@ echo服务器：
 #include "coroutine.h"
 #include "coroutine_net.h"
 
-using namespace std;
-
-void echo(int fd) {
+void Echo(int fd) {
     for (;;) {
         char buf[1024];
-        ssize_t nread = co_read(fd, buf, sizeof(buf));
-        printf("co_read %d bytes\n", nread);
+        ssize_t nread = CoRead(fd, buf, sizeof(buf));
+        printf("CoRead %d bytes\n", nread);
         if (nread <= 0) {
             break;
         }
 
-        ssize_t nwrite = co_write_all(fd, buf, nread);
-        printf("co_write %d bytes\n", nwrite);
+        ssize_t nwrite = CoWriteAll(fd, buf, nread);
+        printf("CoWriteAll %d bytes\n", nwrite);
         if (nwrite < nread) {
             break;
         }
@@ -153,27 +149,27 @@ void echo(int fd) {
     close(fd);
 }
 
-void listener() {
-    int fd = create_listenr_fd(5000);
+void Listener() {
+    int fd = CreateListenrFd(5000);
     for (;;) {
-        int client_fd = co_accept(fd, NULL, NULL);
+        int client_fd = CoAccept(fd, NULL, NULL);
         if (client_fd >= 0) {
-            printf("co_accept client fd: %d\n", client_fd);
-            coroutine_go(std::bind(echo, client_fd));
+            printf("CoAccept client fd: %d\n", client_fd);
+            CoroutineGo(std::bind(Echo, client_fd));
         }
     }
     close(fd);
 }
 
 int main() {
-    coroutine_env_init(0);
-    coroutine_net_init();
+    CoroutineEnvInit(0);
+    CoroutineNetInit();
 
-    coroutine_go(std::bind(listener));
+    CoroutineGo(std::bind(Listener));
 
-    coroutine_net_run();
+    CoroutineNetRun();
 
-    coroutine_net_destory();
-    coroutine_env_destory();
+    CoroutineNetDestory();
+    CoroutineEnvDestory();
 }
 ```

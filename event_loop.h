@@ -1,5 +1,4 @@
-#ifndef VHYZ_EVENT_LOOP_H
-#define VHYZ_EVENT_LOOP_H
+#pragma once
 
 #include <sys/epoll.h>
 #include <array>
@@ -12,22 +11,20 @@ class EventLoop {
 
     ~EventLoop();
 
-    void addEvent(Event* event);
+    void AddEvent(Event* event);
 
-    void updateEvent(Event* event);
+    void UpdateEvent(Event* event);
 
-    void removeEvent(Event* event);
+    void RemoveEvent(Event* event);
 
-    void startLoop(int timeout = -1);
+    void StartLoop(int timeout = -1);
 
    private:
-    int epollFd_;
+    int epoll_fd_;
 
-    static constexpr size_t MAX_EPOLL_EVENT_NUM = 1024;
+    static constexpr size_t kMaxEpollEventNum = 1024;
 
-    std::array<epoll_event, MAX_EPOLL_EVENT_NUM> eventArray_;
+    std::array<epoll_event, kMaxEpollEventNum> event_array_;
 
-    size_t eventNum_;
+    size_t num_event_;
 };
-
-#endif

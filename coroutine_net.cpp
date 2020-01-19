@@ -6,27 +6,27 @@
 #include "coroutine.h"
 #include "event_loop.h"
 
-static thread_local EventLoop* gEventLoop;
+static thread_local EventLoop* g_eventloop;
 
-void coroutine_net_init() { gEventLoop = new EventLoop(); }
+void CoroutineNetInit() { g_eventloop = new EventLoop(); }
 
-void coroutine_net_destory() { delete gEventLoop; }
+void CoroutineNetDestory() { delete g_eventloop; }
 
-void coroutine_net_run() { gEventLoop->startLoop(); }
+void CoroutineNetRun() { g_eventloop->StartLoop(); }
 
-ssize_t co_read(int fd, void* buf, size_t count) {
-    int runningCo = coroutine_running();
+ssize_t CoRead(int fd, void* buf, size_t count) {
+    int runningCo = CoroutineRunning();
 
     Event event(fd);
-    event.enableRead();
-    event.setEventCallBack([runningCo](uint32_t e) {
+    event.EnableRead();
+    event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::READ_EVENT) {
-            coroutine_resume(runningCo);
+            CoroutineResume(runningCo);
         }
     });
 
-    gEventLoop->addEvent(&event);
-    coroutine_yield();
+    g_eventloop->AddEvent(&event);
+    CoroutineYield();
 
     ssize_t n;
     for (;;) {
@@ -40,24 +40,24 @@ ssize_t co_read(int fd, void* buf, size_t count) {
         }
     }
 
-    gEventLoop->removeEvent(&event);
+    g_eventloop->RemoveEvent(&event);
     return n;
 }
 
-ssize_t co_write(int fd, const void* buf, size_t count) {
-    int runningCo = coroutine_running();
+ssize_t CoWrite(int fd, const void* buf, size_t count) {
+    int runningCo = CoroutineRunning();
 
     Event event(fd);
-    event.enableWrite();
-    event.setEventCallBack([runningCo](uint32_t e) {
+    event.EnableWrite();
+    event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            coroutine_resume(runningCo);
+            CoroutineResume(runningCo);
         }
     });
-    gEventLoop->addEvent(&event);
+    g_eventloop->AddEvent(&event);
 
     ssize_t n;
-    coroutine_yield();
+    CoroutineYield();
     for (;;) {
         n = write(fd, buf, count);
         if (n < 0) {
@@ -69,28 +69,28 @@ ssize_t co_write(int fd, const void* buf, size_t count) {
         }
     }
 
-    gEventLoop->removeEvent(&event);
+    g_eventloop->RemoveEvent(&event);
 
     return -1;
 }
 
-ssize_t co_write_all(int fd, const void* buf, size_t count) {
-    int runningCo = coroutine_running();
+ssize_t CoWriteAll(int fd, const void* buf, size_t count) {
+    int runningCo = CoroutineRunning();
 
     Event event(fd);
-    event.enableWrite();
-    event.setEventCallBack([runningCo](uint32_t e) {
+    event.EnableWrite();
+    event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            coroutine_resume(runningCo);
+            CoroutineResume(runningCo);
         }
     });
-    gEventLoop->addEvent(&event);
+    g_eventloop->AddEvent(&event);
 
     ssize_t nleft = count;
     ssize_t nwrite = 0;
     const char* ptr = static_cast<const char*>(buf);
     while (nleft > 0) {
-        coroutine_yield();
+        CoroutineYield();
         nwrite = write(fd, ptr, count);
         if (nwrite < 0) {
             if (errno != EINTR && errno != EAGAIN) {
@@ -101,24 +101,24 @@ ssize_t co_write_all(int fd, const void* buf, size_t count) {
         ptr += nwrite;
     }
 
-    gEventLoop->removeEvent(&event);
+    g_eventloop->RemoveEvent(&event);
 
     return count - nleft;
 }
 
-int co_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
-    int runningCo = coroutine_running();
+int CoAccept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+    int runningCo = CoroutineRunning();
 
     Event event(sockfd);
-    event.enableRead();
-    event.setEventCallBack([runningCo](uint32_t e) {
+    event.EnableRead();
+    event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::READ_EVENT) {
-            coroutine_resume(runningCo);
+            CoroutineResume(runningCo);
         }
     });
 
-    gEventLoop->addEvent(&event);
-    coroutine_yield();
+    g_eventloop->AddEvent(&event);
+    CoroutineYield();
 
     int client_fd;
     for (;;) {
@@ -133,31 +133,31 @@ int co_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     }
 
     if (client_fd >= 0) {
-        set_nonblock(client_fd);
+        SetNonblock(client_fd);
     }
 
-    gEventLoop->removeEvent(&event);
+    g_eventloop->RemoveEvent(&event);
     return client_fd;
 }
 
-int co_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+int CoConnect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     int err = connect(sockfd, addr, addrlen);
     if (!err) {
         return 0;
     }
 
-    int runningCo = coroutine_running();
+    int runningCo = CoroutineRunning();
 
     Event event(sockfd);
-    event.enableWrite();
-    event.setEventCallBack([runningCo](uint32_t e) {
+    event.EnableWrite();
+    event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            coroutine_resume(runningCo);
+            CoroutineResume(runningCo);
         }
     });
-    gEventLoop->addEvent(&event);
+    g_eventloop->AddEvent(&event);
 
-    coroutine_yield();
+    CoroutineYield();
     socklen_t len = sizeof(err);
     int ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &err, &len);
     if (ret) {
@@ -169,29 +169,29 @@ int co_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
         ret = -1;
     }
 
-    gEventLoop->removeEvent(&event);
+    g_eventloop->RemoveEvent(&event);
 
     return ret;
 }
 
-int create_nonblock_tcp_socket() {
+int CreateNonblockTcpSocket() {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    set_nonblock(fd);
+    SetNonblock(fd);
     return fd;
 }
 
-void set_nonblock(int fd) {
+void SetNonblock(int fd) {
     int flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-int create_listenr_fd(uint16_t port) {
-    int fd = create_nonblock_tcp_socket();
+int CreateListenrFd(uint16_t port) {
+    int fd = CreateNonblockTcpSocket();
 
     int on = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
-    set_nonblock(fd);
+    SetNonblock(fd);
 
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
@@ -211,7 +211,7 @@ int create_listenr_fd(uint16_t port) {
     return fd;
 }
 
-int sockaddr_in_init(struct sockaddr_in* addr, const char* ip, uint16_t port) {
+int SockaddrInInit(struct sockaddr_in* addr, const char* ip, uint16_t port) {
     memset(addr, 0, sizeof(struct sockaddr_in));
     int err = inet_pton(AF_INET, ip, &addr->sin_addr);
     if (err < 0) {

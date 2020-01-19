@@ -2,54 +2,54 @@
 #include <unistd.h>
 
 EventLoop::EventLoop() {
-    epollFd_ = epoll_create1(EPOLL_CLOEXEC);
-    eventNum_ = 0;
+    epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
+    num_event_ = 0;
 }
 
-EventLoop::~EventLoop() { close(epollFd_); }
+EventLoop::~EventLoop() { close(epoll_fd_); }
 
-void EventLoop::addEvent(Event* event) {
+void EventLoop::AddEvent(Event* event) {
     epoll_event e;
     e.data.ptr = event;
-    e.events = event->getEvents();
-    int fd = event->getFd();
+    e.events = event->GetEvents();
+    int fd = event->GetFd();
 
-    if (epoll_ctl(epollFd_, EPOLL_CTL_ADD, fd, &e) == 0) {
-        eventNum_++;
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &e) == 0) {
+        num_event_++;
     }
 }
 
-void EventLoop::updateEvent(Event* event) {
+void EventLoop::UpdateEvent(Event* event) {
     epoll_event e;
     e.data.ptr = event;
-    e.events = event->getEvents();
-    int fd = event->getFd();
+    e.events = event->GetEvents();
+    int fd = event->GetFd();
 
-    epoll_ctl(epollFd_, EPOLL_CTL_MOD, fd, &e);
+    epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &e);
 }
 
-void EventLoop::removeEvent(Event* event) {
-    int fd = event->getFd();
+void EventLoop::RemoveEvent(Event* event) {
+    int fd = event->GetFd();
 
-    if (epoll_ctl(epollFd_, EPOLL_CTL_DEL, fd, nullptr) == 0) {
-        eventNum_--;
+    if (epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr) == 0) {
+        num_event_--;
     }
 }
 
-void EventLoop::startLoop(int timeout) {
-    while (eventNum_ > 0) {
-        int num = epoll_wait(epollFd_, eventArray_.data(), eventArray_.size(),
-                             timeout);
+void EventLoop::StartLoop(int timeout) {
+    while (num_event_ > 0) {
+        int num = epoll_wait(epoll_fd_, event_array_.data(),
+                             event_array_.size(), timeout);
 
         if (num < 0) {
             continue;
         }
 
         for (int i = 0; i < num; ++i) {
-            Event* event = static_cast<Event*>(eventArray_[i].data.ptr);
-            uint32_t events = eventArray_[i].events;
+            Event* event = static_cast<Event*>(event_array_[i].data.ptr);
+            uint32_t events = event_array_[i].events;
 
-            event->handleEvent(events);
+            event->HandleEvent(events);
         }
     }
 }
