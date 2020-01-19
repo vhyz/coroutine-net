@@ -87,3 +87,5 @@ co_getcontext:
     movq %rcx, 104(%rdi) 
     fnstcw 112(%rdi) 
     stmxcsr 116(%rdi)
+    xorl %eax, %eax  
+    ret
