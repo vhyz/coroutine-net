@@ -2,25 +2,24 @@
 #include "coroutine.h"
 
 int main() {
-    CoroutineEnvInit(0);
-    int co1 = CoroutineCreate([]() {
+    Coroutine::InitCoroutineEnv();
+    Coroutine* co1 = Coroutine::Create([]() {
         printf("A\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("C\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("E\n");
     });
-    int co2 = CoroutineCreate([]() {
+    Coroutine* co2 = Coroutine::Create([]() {
         printf("B\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("D\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("F\n");
     });
-    while (CoroutineStatus(co1) && CoroutineStatus(co2)) {
-        CoroutineResume(co1);
-        CoroutineResume(co2);
+    while (co1->Status() && co2->Status()) {
+        co1->Resume();
+        co2->Resume();
     }
-    CoroutineEnvDestory();
     return 0;
 }

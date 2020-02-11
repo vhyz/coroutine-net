@@ -1,6 +1,7 @@
 #include "coroutine_net.h"
 #include <arpa/inet.h>
 #include <sys/fcntl.h>
+#include <sys/signal.h>
 #include <unistd.h>
 #include <cstring>
 #include "coroutine.h"
@@ -8,25 +9,32 @@
 
 static thread_local EventLoop* g_eventloop;
 
-void CoroutineNetInit() { g_eventloop = new EventLoop(); }
+void CoroutineNetInit() {
+    signal(SIGPIPE, SIG_IGN);
+    g_eventloop = new EventLoop();
+}
 
-void CoroutineNetDestory() { delete g_eventloop; }
+void CoroutineNetDestory() {
+    delete g_eventloop;
+}
 
-void CoroutineNetRun() { g_eventloop->StartLoop(); }
+void CoroutineNetRun() {
+    g_eventloop->StartLoop();
+}
 
 ssize_t CoRead(int fd, void* buf, size_t count) {
-    int runningCo = CoroutineRunning();
+    Coroutine* runningCo = Coroutine::GetRunningCoroutine();
 
     Event event(fd);
     event.EnableRead();
     event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::READ_EVENT) {
-            CoroutineResume(runningCo);
+            runningCo->Resume();
         }
     });
 
     g_eventloop->AddEvent(&event);
-    CoroutineYield();
+    Coroutine::Yield();
 
     ssize_t n;
     for (;;) {
@@ -45,19 +53,19 @@ ssize_t CoRead(int fd, void* buf, size_t count) {
 }
 
 ssize_t CoWrite(int fd, const void* buf, size_t count) {
-    int runningCo = CoroutineRunning();
+    Coroutine* runningCo = Coroutine::GetRunningCoroutine();
 
     Event event(fd);
     event.EnableWrite();
     event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            CoroutineResume(runningCo);
+            runningCo->Resume();
         }
     });
     g_eventloop->AddEvent(&event);
 
     ssize_t n;
-    CoroutineYield();
+    Coroutine::Yield();
     for (;;) {
         n = write(fd, buf, count);
         if (n < 0) {
@@ -75,13 +83,13 @@ ssize_t CoWrite(int fd, const void* buf, size_t count) {
 }
 
 ssize_t CoWriteAll(int fd, const void* buf, size_t count) {
-    int runningCo = CoroutineRunning();
+    Coroutine* runningCo = Coroutine::GetRunningCoroutine();
 
     Event event(fd);
     event.EnableWrite();
     event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            CoroutineResume(runningCo);
+            runningCo->Resume();
         }
     });
     g_eventloop->AddEvent(&event);
@@ -90,7 +98,7 @@ ssize_t CoWriteAll(int fd, const void* buf, size_t count) {
     ssize_t nwrite = 0;
     const char* ptr = static_cast<const char*>(buf);
     while (nleft > 0) {
-        CoroutineYield();
+        Coroutine::Yield();
         nwrite = write(fd, ptr, count);
         if (nwrite < 0) {
             if (errno != EINTR && errno != EAGAIN) {
@@ -107,18 +115,18 @@ ssize_t CoWriteAll(int fd, const void* buf, size_t count) {
 }
 
 int CoAccept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
-    int runningCo = CoroutineRunning();
+    Coroutine* runningCo = Coroutine::GetRunningCoroutine();
 
     Event event(sockfd);
     event.EnableRead();
     event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::READ_EVENT) {
-            CoroutineResume(runningCo);
+            runningCo->Resume();
         }
     });
 
     g_eventloop->AddEvent(&event);
-    CoroutineYield();
+    Coroutine::Yield();
 
     int client_fd;
     for (;;) {
@@ -146,18 +154,18 @@ int CoConnect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
         return 0;
     }
 
-    int runningCo = CoroutineRunning();
+    Coroutine* runningCo = Coroutine::GetRunningCoroutine();
 
     Event event(sockfd);
     event.EnableWrite();
     event.SetEventCallBack([runningCo](uint32_t e) {
         if (e & Event::WRITE_EVENT) {
-            CoroutineResume(runningCo);
+            runningCo->Resume();
         }
     });
     g_eventloop->AddEvent(&event);
 
-    CoroutineYield();
+    Coroutine::Yield();
     socklen_t len = sizeof(err);
     int ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &err, &len);
     if (ret) {

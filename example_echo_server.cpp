@@ -27,20 +27,19 @@ void Listener() {
         int client_fd = CoAccept(fd, NULL, NULL);
         if (client_fd >= 0) {
             printf("CoAccept client fd: %d\n", client_fd);
-            CoroutineGo(std::bind(Echo, client_fd));
+            Coroutine::Go(std::bind(Echo, client_fd));
         }
     }
     close(fd);
 }
 
 int main() {
-    CoroutineEnvInit(0);
+    Coroutine::InitCoroutineEnv();
     CoroutineNetInit();
 
-    CoroutineGo(std::bind(Listener));
+    Coroutine::Go(std::bind(Listener));
 
     CoroutineNetRun();
 
     CoroutineNetDestory();
-    CoroutineEnvDestory();
 }

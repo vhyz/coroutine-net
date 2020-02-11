@@ -13,6 +13,7 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 * 实现了Linux x86_64平台下的上下文切换汇编，实现了resume,yield等协程操作
 * 使用私有栈实现，每个协程默认具有128K栈
 * 可链式创建协程，如A->B->C，并且每个协程都可resume任意另外一个协程
+* 可设置执行完任务的空闲协程链表的最大数量，这样就不必频繁重复申请协程的栈空间
 
 ### 网络模块
 
@@ -23,46 +24,43 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 
 ### 协程模块
 
-* void CoroutineEnvInit(size_t)         
-初始化协程模块资源
-* void CoroutineEnvDestory()            
-释放协程模块资源
-* int CoroutineCreate(CoroutineCallBack)        
-创建一个协程，返回一个int类型的协程id
-* void CoroutineResume(int)     
-传入一个协程id，切换到该协程
-* int CoroutineGo(CoroutineCallBack)       
-创建一个协程并切换至该协程，实际上是coroutine_create和coroutine_resume的组合
-* void CoroutineYield()   
+* static void InitCoroutineEnv(size_t stack_size = kDefaultStackSize,size_t max_free_co_list_size = kDefaultMaxFreeCoListSize);     
+初始化协程模块资源，第一个参数为栈的大小，第二个参数为执行完任务的空闲协程链表的最大数量
+* static Coroutine* Create(const CoroutineCallBack& cb)  
+创建一个协程，返回协程指针
+* void Resume() 
+唤醒协程
+* static Coroutine* Go(const CoroutineCallBack& cb);
+创建一个协程并切换至该协程，实际上是Create和Resume的组合调用
+* static void Yield() 
 切换到上一个协程
-* int CoroutineRunning()    
-当前运行的协程id
+* static Coroutine* GetRunningCoroutine();   
+返回当前运行的协程
 
 ``` C++
 #include <stdio.h>
 #include "coroutine.h"
 
 int main() {
-    CoroutineEnvInit(0);
-    int co1 = CoroutineCreate([]() {
+    Coroutine::InitCoroutineEnv();
+    Coroutine* co1 = Coroutine::Create([]() {
         printf("A\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("C\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("E\n");
     });
-    int co2 = CoroutineCreate([]() {
+    Coroutine* co2 = Coroutine::Create([]() {
         printf("B\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("D\n");
-        CoroutineYield();
+        Coroutine::Yield();
         printf("F\n");
     });
-    while (CoroutineStatus(co1) && CoroutineStatus(co2)) {
-        CoroutineResume(co1);
-        CoroutineResume(co2);
+    while (co1->Status() && co2->Status()) {
+        co1->Resume();
+        co2->Resume();
     }
-    CoroutineEnvDestory();
     return 0;
 }
 ```
@@ -98,7 +96,6 @@ void ClientEcho() {
             break;
         }
         ssize_t n_write = CoWriteAll(fd, buf, n);
-
         if (n_write < n) {
             break;
         }
@@ -113,14 +110,13 @@ void ClientEcho() {
 }
 
 int main() {
-    CoroutineEnvInit(0);
+    Coroutine::InitCoroutineEnv();
     CoroutineNetInit();
 
-    CoroutineGo(std::bind(ClientEcho));
+    Coroutine::Go(std::bind(ClientEcho));
     CoroutineNetRun();
 
     CoroutineNetDestory();
-    CoroutineEnvDestory();
 }
 ```
 
@@ -155,21 +151,20 @@ void Listener() {
         int client_fd = CoAccept(fd, NULL, NULL);
         if (client_fd >= 0) {
             printf("CoAccept client fd: %d\n", client_fd);
-            CoroutineGo(std::bind(Echo, client_fd));
+            Coroutine::Go(std::bind(Echo, client_fd));
         }
     }
     close(fd);
 }
 
 int main() {
-    CoroutineEnvInit(0);
+    Coroutine::InitCoroutineEnv();
     CoroutineNetInit();
 
-    CoroutineGo(std::bind(Listener));
+    Coroutine::Go(std::bind(Listener));
 
     CoroutineNetRun();
 
     CoroutineNetDestory();
-    CoroutineEnvDestory();
 }
 ```

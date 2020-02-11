@@ -1,5 +1,4 @@
-#ifndef VHYZ_EVENT_H
-#define VHYZ_EVENT_H
+#pragma once
 
 #include <sys/epoll.h>
 #include <functional>
@@ -9,8 +8,8 @@ class Event {
     using EventCallBack = std::function<void(uint32_t)>;
 
     static const uint32_t NONE_EVENT = 0;
-    static const uint32_t READ_EVENT = EPOLLIN | EPOLLPRI;
-    static const uint32_t WRITE_EVENT = EPOLLOUT;
+    static const uint32_t READ_EVENT = EPOLLIN | EPOLLPRI | EPOLLRDHUP;
+    static const uint32_t WRITE_EVENT = EPOLLOUT | EPOLLRDHUP;
 
     Event() : fd_(-1) {}
 
@@ -49,5 +48,3 @@ class Event {
 
     EventCallBack cb_;
 };
-
-#endif

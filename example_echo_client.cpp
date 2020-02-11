@@ -23,7 +23,6 @@ void ClientEcho() {
             break;
         }
         ssize_t n_write = CoWriteAll(fd, buf, n);
-
         if (n_write < n) {
             break;
         }
@@ -38,12 +37,11 @@ void ClientEcho() {
 }
 
 int main() {
-    CoroutineEnvInit(0);
+    Coroutine::InitCoroutineEnv();
     CoroutineNetInit();
 
-    CoroutineGo(std::bind(ClientEcho));
+    Coroutine::Go(std::bind(ClientEcho));
     CoroutineNetRun();
 
     CoroutineNetDestory();
-    CoroutineEnvDestory();
 }
