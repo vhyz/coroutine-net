@@ -6,7 +6,9 @@ EventLoop::EventLoop() {
     num_event_ = 0;
 }
 
-EventLoop::~EventLoop() { close(epoll_fd_); }
+EventLoop::~EventLoop() {
+    close(epoll_fd_);
+}
 
 void EventLoop::AddEvent(Event* event) {
     epoll_event e;
@@ -36,10 +38,10 @@ void EventLoop::RemoveEvent(Event* event) {
     }
 }
 
-void EventLoop::StartLoop(int timeout) {
+void EventLoop::StartLoop() {
     while (num_event_ > 0) {
-        int num = epoll_wait(epoll_fd_, event_array_.data(),
-                             event_array_.size(), timeout);
+        int num =
+            epoll_wait(epoll_fd_, event_array_.data(), event_array_.size(), 1);
 
         if (num < 0) {
             continue;

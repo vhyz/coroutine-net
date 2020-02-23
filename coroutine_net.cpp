@@ -40,7 +40,7 @@ ssize_t CoRead(int fd, void* buf, size_t count) {
     for (;;) {
         n = read(fd, buf, count);
         if (n < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
+            if (errno != EAGAIN) {
                 break;
             }
         } else {
@@ -69,7 +69,7 @@ ssize_t CoWrite(int fd, const void* buf, size_t count) {
     for (;;) {
         n = write(fd, buf, count);
         if (n < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
+            if (errno != EAGAIN) {
                 break;
             }
         } else {
@@ -101,7 +101,7 @@ ssize_t CoWriteAll(int fd, const void* buf, size_t count) {
         Coroutine::Yield();
         nwrite = write(fd, ptr, count);
         if (nwrite < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
+            if (errno != EAGAIN) {
                 break;
             }
         }
@@ -132,7 +132,7 @@ int CoAccept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     for (;;) {
         client_fd = accept(sockfd, addr, addrlen);
         if (client_fd < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
+            if (errno != EAGAIN) {
                 break;
             }
         } else {
@@ -208,10 +208,12 @@ int CreateListenrFd(uint16_t port) {
 
     if (bind(fd, (const struct sockaddr*)&addr, sizeof(addr)) < 0) {
         fprintf(stderr, "bind error\n");
+        close(fd);
         return -1;
     }
 
     if (listen(fd, SOMAXCONN) < 0) {
+        close(fd);
         fprintf(stderr, "listen error\n");
         return -1;
     }

@@ -17,7 +17,7 @@ class EventLoop {
 
     void RemoveEvent(Event* event);
 
-    void StartLoop(int timeout = -1);
+    void StartLoop();
 
    private:
     int epoll_fd_;
