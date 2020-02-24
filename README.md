@@ -11,14 +11,22 @@ coroutine-net是一个用C++编写的基于协程的简易网络库，能够像�
 ### 协程模块
 
 * 实现了Linux x86_64平台下的上下文切换汇编，实现了resume,yield等协程操作
-* 使用私有栈实现，每个协程默认具有128K栈
+* 使用私有栈实现，每个协程默认具有128K栈，利用操作系统的虚拟内存原理，实际上每个协程并不占用栈的全部物理内存空间
 * 可链式创建协程，如A->B->C，并且每个协程都可resume任意另外一个协程
 * 可设置执行完任务的空闲协程链表的最大数量，这样就不必频繁重复申请协程的栈空间
 
 ### 网络模块
 
 * 事件循环EventLoop用epoll的LT模式实现
-* 实现了CoRead,CoWrite,CoConnect,CoAccept等函数，调用它们时如遇到IO阻塞会yield切换到其他的协程
+* 采用Linux的hook技术替换了系统的socket,read,write等函数，协程在遇到IO阻塞时会切换到另一个协程
+* 内置一个单级时间轮定时器，可提供一分钟的定时，定时精度单位为ms
+
+已hook的系统函数：socket, accept, close, connect, read, write, send, sendto, sendmsg, recv, recvfrom, recvmsg, poll, fcntl, setsockopt
+
+### TODO
+
+* 计划hook的系统函数：select, gethostbyname, gethostbyname_r, dup, dup2
+* 定时器优化为多级时间轮的定时器，支持更长的时间定时
 
 ## Usage
 
@@ -71,18 +79,33 @@ int main() {
 
 echo 客户端：
 ``` C++
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #include <unistd.h>
+#include <cstring>
 #include <iostream>
 #include "coroutine.h"
-#include "coroutine_net.h"
+#include "event_loop.h"
+
+int SockaddrInInit(struct sockaddr_in* addr, const char* ip, uint16_t port) {
+    memset(addr, 0, sizeof(struct sockaddr_in));
+    int err = inet_pton(AF_INET, ip, &addr->sin_addr);
+    if (err < 0) {
+        return -1;
+    }
+
+    addr->sin_family = AF_INET;
+    addr->sin_port = htons(port);
+    return 0;
+}
 
 void ClientEcho() {
     struct sockaddr_in addr;
     SockaddrInInit(&addr, "127.0.0.1", 5000);
 
-    int fd = CreateNonblockTcpSocket();
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    int err = CoConnect(fd, (const struct sockaddr*)&addr, sizeof(addr));
+    int err = connect(fd, (const struct sockaddr*)&addr, sizeof(addr));
 
     if (err) {
         close(fd);
@@ -91,15 +114,15 @@ void ClientEcho() {
 
     for (;;) {
         char buf[1024];
-        ssize_t n = CoRead(STDIN_FILENO, buf, sizeof(buf));
+        ssize_t n = read(STDIN_FILENO, buf, sizeof(buf));
         if (n <= 0) {
             break;
         }
-        ssize_t n_write = CoWriteAll(fd, buf, n);
+        ssize_t n_write = write(fd, buf, n);
         if (n_write < n) {
             break;
         }
-        ssize_t n_read = CoRead(fd, buf, n_write);
+        ssize_t n_read = read(fd, buf, n_write);
         if (n_read <= 0) {
             break;
         }
@@ -111,33 +134,34 @@ void ClientEcho() {
 
 int main() {
     Coroutine::InitCoroutineEnv();
-    CoroutineNetInit();
 
     Coroutine::Go(std::bind(ClientEcho));
-    CoroutineNetRun();
 
-    CoroutineNetDestory();
+    EventLoop::GetThreadInstance().StartLoop();
 }
 ```
 
 echo服务器：
 ``` C++
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <iostream>
 #include "coroutine.h"
-#include "coroutine_net.h"
+#include "event_loop.h"
+using namespace std;
 
 void Echo(int fd) {
     for (;;) {
         char buf[1024];
-        ssize_t nread = CoRead(fd, buf, sizeof(buf));
-        printf("CoRead %d bytes\n", nread);
+        ssize_t nread = read(fd, buf, sizeof(buf));
+        printf("read %d bytes\n", nread);
         if (nread <= 0) {
             break;
         }
 
-        ssize_t nwrite = CoWriteAll(fd, buf, nread);
-        printf("CoWriteAll %d bytes\n", nwrite);
+        ssize_t nwrite = write(fd, buf, nread);
+        printf("writeA %d bytes\n", nwrite);
         if (nwrite < nread) {
             break;
         }
@@ -145,12 +169,38 @@ void Echo(int fd) {
     close(fd);
 }
 
+int CreateListenrFd(uint16_t port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    int on = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(fd, (const struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        fprintf(stderr, "bind error\n");
+        close(fd);
+        return -1;
+    }
+
+    if (listen(fd, SOMAXCONN) < 0) {
+        close(fd);
+        fprintf(stderr, "listen error\n");
+        return -1;
+    }
+
+    return fd;
+}
+
 void Listener() {
     int fd = CreateListenrFd(5000);
     for (;;) {
-        int client_fd = CoAccept(fd, NULL, NULL);
+        int client_fd = accept(fd, NULL, NULL);
         if (client_fd >= 0) {
-            printf("CoAccept client fd: %d\n", client_fd);
+            printf("accept client fd: %d\n", client_fd);
             Coroutine::Go(std::bind(Echo, client_fd));
         }
     }
@@ -159,12 +209,9 @@ void Listener() {
 
 int main() {
     Coroutine::InitCoroutineEnv();
-    CoroutineNetInit();
 
     Coroutine::Go(std::bind(Listener));
 
-    CoroutineNetRun();
-
-    CoroutineNetDestory();
+    EventLoop::GetThreadInstance().StartLoop();
 }
 ```
