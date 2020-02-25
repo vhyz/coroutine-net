@@ -75,7 +75,7 @@ int main() {
 
 ### 网络模块
 
-暂时只实现了read,write,connect,accept函数对应的co版本，下面是echo服务器与客户端的例子
+hook了socket相关函数，可使用同步的方式编写异步的网络程序
 
 echo 客户端：
 ``` C++
