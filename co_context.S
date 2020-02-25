@@ -52,6 +52,7 @@ co_setcontext:
     movq 24(%rax), %r13 
     movq 32(%rax), %r14 
     movq 40(%rax), %r15 
+    
     movq 48(%rax), %rdi 
     movq 56(%rax), %rsi 
     movq 72(%rax), %rcx 
@@ -74,7 +75,7 @@ co_getcontext:
     movq %r13, 24(%rdi) 
     movq %r14, 32(%rdi) 
     movq %r15, 40(%rdi) 
-    // 保存6个参数寄存器 
+    
     movq %rdi, 48(%rdi) 
     movq %rsi, 56(%rdi) 
     movq %rdx, 64(%rdi) 

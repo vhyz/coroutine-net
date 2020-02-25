@@ -162,27 +162,23 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     HOOK_FUNC(connect);
 
     int err = SYSTEM_FUNC(connect)(sockfd, addr, addrlen);
-    if (!err) {
-        return 0;
+    if (!err || errno != EINPROGRESS) {
+        return err;
     }
-
     SocketContext *ctx = GetSocketContext(sockfd);
     if (ctx == nullptr || ctx->user_nonblock) {
         return SYSTEM_FUNC(connect)(sockfd, addr, addrlen);
     }
     WaitUntilEvent(sockfd, ctx, EPOLLOUT);
-
     socklen_t len = sizeof(err);
     int ret = getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &err, &len);
-    if (ret) {
-        ret = -1;
+    if (ret < 0) {
+        return -1;
     }
-    errno = err;
-
     if (err) {
         ret = -1;
+        errno = err;
     }
-
     return ret;
 }
 

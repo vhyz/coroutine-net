@@ -32,7 +32,8 @@ add_executable(
     test_timer_wheel.cpp
 )
 
-target_link_libraries(example_coroutine coroutine-net dl)
-target_link_libraries(example_echo_client coroutine-net dl)
-target_link_libraries(example_echo_server coroutine-net dl)
-target_link_libraries(test_timer_wheel coroutine-net dl)
+target_link_libraries(coroutine-net dl)
+target_link_libraries(example_coroutine coroutine-net)
+target_link_libraries(example_echo_client coroutine-net)
+target_link_libraries(example_echo_server coroutine-net)
+target_link_libraries(test_timer_wheel coroutine-net)
