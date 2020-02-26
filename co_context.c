@@ -7,19 +7,12 @@
 #define R13 3
 #define R14 4
 #define R15 5
-#define RDI 6
-#define RSI 7
-#define RDX 8
-#define RCX 9
-#define R8 10
-#define R9 11
-#define RIP 12
-#define RSP 13
+#define RIP 6
+#define RSP 7
 
-int co_makecontext(co_context* ctx, context_func func, void* args) {
+void co_makecontext(co_context* ctx, context_func func) {
     char* rsp = ctx->stack + ctx->stack_size;
     rsp = (char*)((((uintptr_t)rsp) & -16L) - 8);
     ctx->regs[RSP] = rsp;
     ctx->regs[RIP] = func;
-    ctx->regs[RDI] = args;
 }

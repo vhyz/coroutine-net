@@ -311,6 +311,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout) {
 
     std::unordered_map<int, std::unique_ptr<SocketContext>> tmp_socket_map;
     Coroutine *co = Coroutine::GetRunningCoroutine();
+    int first_positive_fd = -1;
     for (int i = 0; i < nfds; ++i) {
         if (fds[i].fd < 0) {
             continue;
@@ -319,15 +320,18 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout) {
         if (ctx == nullptr) {
             std::unique_ptr<SocketContext> c(new SocketContext());
             ctx = c.get();
-            tmp_socket_map[fds->fd] = std::move(c);
+            tmp_socket_map[fds[i].fd] = std::move(c);
         }
-        ctx->events = fds->events;
-        ctx->poll_group_fd = fds[0].fd;
+        if (first_positive_fd < 0) {
+            first_positive_fd = fds[i].fd;
+        }
+        ctx->events = fds[i].events;
+        ctx->poll_group_fd = first_positive_fd;
         ctx->read_co = co;
         ctx->revents = 0;
         fds[i].revents = 0;
 
-        EventLoop::GetThreadInstance().AddEvent(fds->fd, ctx);
+        EventLoop::GetThreadInstance().AddEvent(fds[i].fd, ctx);
     }
 
     EventLoop::GetThreadInstance().Suspend(timeout);

@@ -3,6 +3,10 @@
 #include <memory>
 #include <unordered_set>
 
+class Scheduler;
+
+static thread_local std::unique_ptr<Scheduler> g_scheduler;
+
 class Scheduler {
    public:
     Scheduler(size_t stack_size, size_t max_free_co_list_size)
@@ -32,7 +36,7 @@ class Scheduler {
             co->cb = cb;
             co->ctx.stack = co->stack;
             co->ctx.stack_size = stack_size_;
-            co_makecontext(&co->ctx, (void (*)(void*))CoFunction, this);
+            co_makecontext(&co->ctx, CoFunction);
         }
         return co;
     }
@@ -66,8 +70,8 @@ class Scheduler {
         co_swapcontext(&cur_co->ctx, &pre_co->ctx);
     }
 
-    static void CoFunction(void* arg) {
-        Scheduler* scheduler = static_cast<Scheduler*>(arg);
+    static void CoFunction() {
+        Scheduler* scheduler = g_scheduler.get();
         Coroutine* co = scheduler->running_co_;
         co->cb();
         co->cb = nullptr;
@@ -108,8 +112,6 @@ class Scheduler {
     std::unordered_set<Coroutine*> running_co_set_;
     std::list<Coroutine*> free_co_list_;
 };
-
-std::unique_ptr<Scheduler> g_scheduler;
 
 void Coroutine::InitCoroutineEnv(size_t stack_size,
                                  size_t max_free_co_list_size) {
