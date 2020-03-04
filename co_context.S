@@ -38,3 +38,9 @@ co_setcontext:
     fldcw 64(%rdi)    
     ldmxcsr 68(%rdi)  
     jmp  *%rax            // jmp ret address
+
+.global co_save_fpucw_mxcsr
+co_save_fpucw_mxcsr:
+    fnstcw 0(%rdi) 
+    stmxcsr 4(%rdi)
+    ret

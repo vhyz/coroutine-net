@@ -81,12 +81,13 @@ class Scheduler {
         pre_co->status = COROUTINE_RUNNING;
         scheduler->running_co_ = pre_co;
         scheduler->running_co_set_.erase(co);
-        if (scheduler->free_co_list_.size() >
+        if (scheduler->free_co_list_.size() >=
             scheduler->max_free_co_list_size_) {
-            delete co;
-        } else {
-            scheduler->free_co_list_.push_back(co);
+            Coroutine* dead_co = scheduler->free_co_list_.front();
+            scheduler->free_co_list_.pop_front();
+            delete dead_co;
         }
+        scheduler->free_co_list_.push_back(co);
 
         co_setcontext(&pre_co->ctx);
     }
@@ -115,6 +116,7 @@ class Scheduler {
 
 void Coroutine::InitCoroutineEnv(size_t stack_size,
                                  size_t max_free_co_list_size) {
+    co_context_thread_init();
     g_scheduler.reset(new Scheduler(stack_size, max_free_co_list_size));
 }
 

@@ -41,7 +41,8 @@ HOOK_FUNC_INIT(select);
 HOOK_FUNC_INIT(fcntl);
 HOOK_FUNC_INIT(setsockopt);
 
-std::unordered_map<int, std::unique_ptr<SocketContext>> g_socket_context_map;
+static thread_local std::unordered_map<int, std::unique_ptr<SocketContext>>
+    g_socket_context_map;
 
 void NewSocketContext(int fd) {
     g_socket_context_map[fd] =
