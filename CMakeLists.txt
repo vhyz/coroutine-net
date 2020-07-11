@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-set(CXX_FLAGS -g)
+set(CXX_FLAGS -g -O2)
 ENABLE_LANGUAGE(ASM)
+include_directories(${PROJECT_SOURCE_DIR})
 
 add_library(
     coroutine-net
@@ -37,3 +38,5 @@ target_link_libraries(example_coroutine coroutine-net)
 target_link_libraries(example_echo_client coroutine-net)
 target_link_libraries(example_echo_server coroutine-net)
 target_link_libraries(test_timer_wheel coroutine-net)
+
+add_subdirectory(benchmark/throughput)

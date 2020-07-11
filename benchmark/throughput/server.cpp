@@ -1,22 +1,20 @@
 #include <arpa/inet.h>
+#include <coroutine_net.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <iostream>
-#include "coroutine.h"
-#include "event_loop.h"
 using namespace std;
 
 void Echo(int fd) {
     for (;;) {
         char buf[1024];
         ssize_t nread = read(fd, buf, sizeof(buf));
-        printf("read %d bytes\n", nread);
         if (nread <= 0) {
             break;
         }
 
         ssize_t nwrite = write(fd, buf, nread);
-        printf("write %d bytes\n", nwrite);
         if (nwrite < nread) {
             break;
         }
@@ -52,10 +50,11 @@ int CreateListenrFd(uint16_t port) {
 
 void Listener() {
     int fd = CreateListenrFd(5000);
+    sockaddr_in addr;
+    socklen_t len = sizeof(addr);
     for (;;) {
-        int client_fd = accept(fd, NULL, NULL);
+        int client_fd = accept(fd, (sockaddr*)&addr, &len);
         if (client_fd >= 0) {
-            printf("accept client fd: %d\n", client_fd);
             Coroutine::Go(std::bind(Echo, client_fd));
         }
     }
@@ -64,6 +63,7 @@ void Listener() {
 
 int main() {
     Coroutine::InitCoroutineEnv();
+    signal(SIGPIPE, SIG_IGN);
 
     Coroutine::Go(std::bind(Listener));
 
